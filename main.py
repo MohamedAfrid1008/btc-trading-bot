@@ -1,14 +1,15 @@
 from flask import Flask, request, jsonify
-import alpaca_trade_api as tradeapi
+from alpaca.trading.client import TradingClient
+from alpaca.trading.requests import MarketOrderRequest
+from alpaca.trading.enums import OrderSide, TimeInForce
 import os
 
 app = Flask(__name__)
 
 API_KEY = os.environ.get('ALPACA_API_KEY')
 SECRET_KEY = os.environ.get('ALPACA_SECRET_KEY')
-BASE_URL = 'https://paper-api.alpaca.markets'
 
-api = tradeapi.REST(API_KEY, SECRET_KEY, BASE_URL, api_version='v2')
+client = TradingClient(API_KEY, SECRET_KEY, paper=True)
 
 @app.route('/')
 def home():
@@ -23,34 +24,35 @@ def webhook():
     action = data.get('action')
 
     try:
-        position = api.get_position(symbol)
+        position = client.get_open_position(symbol)
         has_position = True
     except:
         has_position = False
 
     if action == 'buy' and not has_position:
-        account = api.get_account()
+        account = client.get_account()
         cash = float(account.cash)
         price = float(data.get('price', 1))
-        qty = round((cash * 0.10) / price, 4)  # use 10% of cash
-        
-        api.submit_order(
+        qty = round((cash * 0.10) / price, 4)
+
+        order = MarketOrderRequest(
             symbol=symbol,
             qty=qty,
-            side='buy',
-            type='market',
-            time_in_force='gtc'
+            side=OrderSide.BUY,
+            time_in_force=TimeInForce.GTC
         )
+        client.submit_order(order)
         print(f"BUY order placed: {qty} BTC")
 
     elif action == 'sell' and has_position:
-        api.submit_order(
+        qty = position.qty
+        order = MarketOrderRequest(
             symbol=symbol,
-            qty=position.qty,
-            side='sell',
-            type='market',
-            time_in_force='gtc'
+            qty=qty,
+            side=OrderSide.SELL,
+            time_in_force=TimeInForce.GTC
         )
+        client.submit_order(order)
         print(f"SELL order placed")
 
     return jsonify({'status': 'ok'})
