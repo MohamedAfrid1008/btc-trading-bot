@@ -9,6 +9,9 @@ app = Flask(__name__)
 API_KEY = os.environ.get('ALPACA_API_KEY')
 SECRET_KEY = os.environ.get('ALPACA_SECRET_KEY')
 
+if not API_KEY or not SECRET_KEY:
+    raise RuntimeError("Missing ALPACA_API_KEY or ALPACA_SECRET_KEY environment variables")
+
 client = TradingClient(API_KEY, SECRET_KEY, paper=True)
 
 @app.route('/')
@@ -45,10 +48,10 @@ def webhook():
         print(f"BUY order placed: {qty} BTC")
 
     elif action == 'sell' and has_position:
-        qty = position.qty
+        position = client.get_open_position(symbol)
         order = MarketOrderRequest(
             symbol=symbol,
-            qty=qty,
+            qty=position.qty,
             side=OrderSide.SELL,
             time_in_force=TimeInForce.GTC
         )
